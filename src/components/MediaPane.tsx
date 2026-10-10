@@ -81,6 +81,7 @@ export function MediaPane() {
         loading={loading}
         onSelect={(entry) => setSelected(entry.name)}
         onCreate={() => void importFiles()}
+        askTitle={false}
         createLabel={importing ? "Importing…" : "Import"}
         renderMeta={(entry) => formatBytes(entry.size)}
         emptyHint="Import images, PDFs or any attachment."

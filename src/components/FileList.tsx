@@ -10,6 +10,12 @@ export interface FileListProps {
   loading?: boolean;
   onSelect: (entry: FileEntry) => void;
   onCreate?: (title: string) => void;
+  /**
+   * When true (default) the button reveals an inline title box and passes the
+   * typed title to `onCreate`. When false the button calls `onCreate("")`
+   * straight away, for screens that collect details in their own form.
+   */
+  askTitle?: boolean;
   createLabel?: string;
   renderMeta?: (entry: FileEntry) => ReactNode;
   emptyHint?: string;
@@ -23,6 +29,7 @@ export function FileList({
   loading = false,
   onSelect,
   onCreate,
+  askTitle = true,
   createLabel = "New",
   renderMeta,
   emptyHint = "Nothing here yet.",
@@ -54,7 +61,8 @@ export function FileList({
       <header className="file-list-header">
         <h2>{title}</h2>
         {onCreate ? (
-          <button type="button" className="btn btn-small" onClick={() => setCreating((c) => !c)}>
+          <button type="button" className="btn btn-small" onClick={() => (askTitle ? setCreating((c) => !c) : onCreate(""))}
+          >
             + {createLabel}
           </button>
         ) : null}

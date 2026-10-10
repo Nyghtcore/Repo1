@@ -207,6 +207,7 @@ export function PasswordsPane() {
         loading={loading}
         onSelect={(entry) => void openCredential(entry.name)}
         onCreate={() => startNew()}
+        askTitle={false}
         createLabel="Credential"
         emptyHint="No credentials yet. Add one to get started."
       />

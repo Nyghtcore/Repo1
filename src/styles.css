@@ -478,7 +478,9 @@ textarea {
   padding: 0 14px 8px;
 }
 
-.file-list-filter {
+/* Scoped under .file-list so it outranks the global input[type="search"]
+   width rule, which otherwise pushed the box past the panel edge. */
+.file-list .file-list-filter {
   margin: 0 14px 8px;
   width: calc(100% - 28px);
 }
