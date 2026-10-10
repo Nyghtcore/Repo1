@@ -1198,3 +1198,10 @@ textarea {
     max-width: 420px;
   }
 }
+
+.empty-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}

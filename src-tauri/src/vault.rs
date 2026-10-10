@@ -957,6 +957,187 @@ pub fn save_credential(state: State<'_, AppState>, input: CredentialInput) -> Ap
     decrypt_credential(&key, &name, &path, &text)
 }
 
+/// Outcome of a bulk credential import.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportResult {
+    /// Rows that became encrypted credential files.
+    pub imported: usize,
+    /// Rows skipped (no password, or a duplicate of one already imported).
+    pub skipped: usize,
+    /// Data rows seen in the file.
+    pub total: usize,
+}
+
+/// Parse CSV text into rows of fields (RFC 4180: comma separated, `"` quoted,
+/// `""` escapes a quote, newlines allowed inside quotes).
+fn parse_csv(text: &str) -> Vec<Vec<String>> {
+    let mut rows = Vec::new();
+    let mut row = Vec::new();
+    let mut field = String::new();
+    let mut in_quotes = false;
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if in_quotes {
+            match c {
+                '"' => {
+                    if chars.peek() == Some(&'"') {
+                        field.push('"');
+                        chars.next();
+                    } else {
+                        in_quotes = false;
+                    }
+                }
+                _ => field.push(c),
+            }
+        } else {
+            match c {
+                '"' => in_quotes = true,
+                ',' => {
+                    row.push(std::mem::take(&mut field));
+                }
+                '\r' => {}
+                '\n' => {
+                    row.push(std::mem::take(&mut field));
+                    rows.push(std::mem::take(&mut row));
+                }
+                _ => field.push(c),
+            }
+        }
+    }
+    if !field.is_empty() || !row.is_empty() {
+        row.push(field);
+        rows.push(row);
+    }
+    rows
+}
+
+/// Turn a login URL into a readable credential title: host without scheme,
+/// `www.` or a trailing path. Falls back to the whole string.
+fn title_from_url(url: &str) -> String {
+    let no_scheme = url
+        .split_once("://")
+        .map(|(_, rest)| rest)
+        .unwrap_or(url);
+    let host = no_scheme
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or(no_scheme);
+    let host = host.strip_prefix("www.").unwrap_or(host);
+    let host = host.rsplit('@').next().unwrap_or(host);
+    if host.trim().is_empty() {
+        "Imported login".to_string()
+    } else {
+        host.trim().to_string()
+    }
+}
+
+/// Encrypt and write one credential during a bulk import.
+fn write_imported_credential(
+    key: &MasterKey,
+    dir: &Path,
+    title: &str,
+    secret: &CredentialSecret,
+    notes: &str,
+) -> AppResult<()> {
+    let name = unique_markdown_name(dir, &slugify(title));
+    let path = dir.join(&name);
+    let mut fm = Map::new();
+    let secret_json = Zeroizing::new(serde_json::to_string(secret)?);
+    let blob = crypto::encrypt_to_base64(key, secret_json.as_bytes())?;
+    fm.insert("title".into(), Value::String(title.to_string()));
+    fm.insert("tags".into(), Value::Array(vec![Value::String("firefox".into())]));
+    fm.insert("created".into(), Value::String(now_iso()));
+    fm.insert("updated".into(), Value::String(now_iso()));
+    fm.insert("secure_blob".into(), Value::String(blob));
+    let text = frontmatter::render(&fm, notes)?;
+    atomic_write(&path, text.as_bytes())?;
+    Ok(())
+}
+
+/// Import a Firefox password export (Settings → Passwords → Export logins → CSV).
+///
+/// Each row becomes an encrypted credential. The CSV columns are matched by
+/// their header names (`url`, `username`, `password`), so the export's column
+/// order does not matter. Rows with no password, and rows that duplicate an
+/// (url + username) pair already seen in the same file, are skipped.
+#[tauri::command]
+pub fn import_firefox_csv(state: State<'_, AppState>, csv_path: String) -> AppResult<ImportResult> {
+    let root = state.require_vault()?;
+    let key = state.require_key()?;
+    let dir = category_dir(&root, Category::Passwords);
+    fs::create_dir_all(&dir).map_err(|e| AppError::io(&dir, e))?;
+
+    let source = PathBuf::from(csv_path.trim());
+    let raw = Zeroizing::new(match fs::read_to_string(&source) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(AppError::NotFound(source.display().to_string()));
+        }
+        Err(e) => return Err(AppError::io(&source, e)),
+    });
+
+    let rows = parse_csv(&raw);
+    let mut rows = rows.into_iter();
+    let header = rows
+        .next()
+        .ok_or_else(|| AppError::Other("the CSV file is empty".into()))?;
+    let column = |name: &str| header.iter().position(|h| h.trim().eq_ignore_ascii_case(name));
+    let (url_i, user_i, pass_i) = match (column("url"), column("username"), column("password")) {
+        (Some(u), Some(n), Some(p)) => (u, n, p),
+        _ => {
+            return Err(AppError::Other(
+                "not a Firefox password export: expected url, username and password columns".into(),
+            ))
+        }
+    };
+    let realm_i = column("httpRealm");
+
+    let mut result = ImportResult {
+        imported: 0,
+        skipped: 0,
+        total: 0,
+    };
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for row in rows {
+        if row.iter().all(|f| f.trim().is_empty()) {
+            continue;
+        }
+        result.total += 1;
+        let get = |i: usize| row.get(i).map(|s| s.trim()).unwrap_or("");
+        let url = get(url_i);
+        let username = get(user_i);
+        let password = get(pass_i);
+        if password.is_empty() {
+            result.skipped += 1;
+            continue;
+        }
+        let dedupe_key = format!("{}\u{0}{}", url.to_lowercase(), username.to_lowercase());
+        if !seen.insert(dedupe_key) {
+            result.skipped += 1;
+            continue;
+        }
+
+        let secret = CredentialSecret {
+            username: username.to_string(),
+            password: password.to_string(),
+            url: url.to_string(),
+            totp_secret: String::new(),
+            fields: BTreeMap::new(),
+        };
+        let title = title_from_url(url);
+        let notes = match realm_i.and_then(|i| row.get(i)).map(|s| s.trim()) {
+            Some(realm) if !realm.is_empty() => format!("Imported from Firefox. Realm: {realm}\n"),
+            _ => "Imported from Firefox.\n".to_string(),
+        };
+        write_imported_credential(&key, &dir, &title, &secret, &notes)?;
+        result.imported += 1;
+    }
+
+    Ok(result)
+}
+
 /// Generate a random password on the backend using the OS CSPRNG.
 #[tauri::command]
 pub fn generate_password(length: Option<usize>, symbols: Option<bool>) -> AppResult<String> {
@@ -1224,6 +1405,25 @@ mod tests {
             .collect();
         assert!(leftovers.is_empty());
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn parses_csv_with_quotes_and_commas() {
+        let text = "url,username,password\n\
+            https://a.com,me,\"p,w\"\"x\"\n\
+            https://b.com,you,secret\n";
+        let rows = parse_csv(text);
+        assert_eq!(rows[0], vec!["url", "username", "password"]);
+        assert_eq!(rows[1], vec!["https://a.com", "me", "p,w\"x"]);
+        assert_eq!(rows[2], vec!["https://b.com", "you", "secret"]);
+    }
+
+    #[test]
+    fn title_from_url_strips_scheme_and_www() {
+        assert_eq!(title_from_url("https://www.github.com/login"), "github.com");
+        assert_eq!(title_from_url("https://mail.google.com/"), "mail.google.com");
+        assert_eq!(title_from_url("ftp://files.example.org"), "files.example.org");
+        assert_eq!(title_from_url(""), "Imported login");
     }
 
     #[test]

@@ -56,6 +56,7 @@ pub fn run() {
             // credentials
             vault::read_credential,
             vault::save_credential,
+            vault::import_firefox_csv,
             vault::generate_password,
             // media
             vault::import_media,

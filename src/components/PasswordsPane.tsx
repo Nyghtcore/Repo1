@@ -193,6 +193,23 @@ export function PasswordsPane() {
     setDirty(false);
   }
 
+  async function importFirefox() {
+    try {
+      const picked = await api.pickFiles("Choose your Firefox passwords CSV export");
+      const csv = picked[0];
+      if (!csv) return;
+      const result = await api.importFirefoxCsv(csv);
+      await refresh();
+      toast.push(
+        "success",
+        `Imported ${result.imported} credential${result.imported === 1 ? "" : "s"}`,
+        result.skipped > 0 ? `${result.skipped} skipped (no password or duplicate)` : undefined,
+      );
+    } catch (error) {
+      toast.push("error", "Import failed", errorMessage(error));
+    }
+  }
+
   async function remove() {
     if (!selected) return;
     if (!window.confirm(`Delete "${selected}" permanently?`)) return;
@@ -394,9 +411,18 @@ export function PasswordsPane() {
               Each credential is a Markdown file. Secrets are encrypted with AES-256-GCM into the{" "}
               <code>secure_blob</code> frontmatter key; the body stays readable.
             </p>
-            <button type="button" className="btn btn-primary" onClick={startNew}>
-              Add credential
-            </button>
+            <div className="empty-actions">
+              <button type="button" className="btn btn-primary" onClick={startNew}>
+                Add credential
+              </button>
+              <button type="button" className="btn" onClick={() => void importFirefox()}>
+                Import from Firefox
+              </button>
+            </div>
+            <p className="hint">
+              In Firefox: menu → Passwords → the ⋯ menu → Export logins, which saves a CSV.
+              Import it here, then delete the CSV. It holds your passwords in plain text.
+            </p>
           </div>
         )}
       </section>

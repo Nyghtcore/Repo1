@@ -106,6 +106,15 @@ export const saveCredential = (input: CredentialInput) =>
 export const generatePassword = (length = 20, symbols = true) =>
   invoke<string>("generate_password", { length, symbols });
 
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+  total: number;
+}
+
+export const importFirefoxCsv = (csvPath: string) =>
+  invoke<ImportResult>("import_firefox_csv", { csvPath });
+
 // ---------------------------------------------------------------------------
 // Media
 // ---------------------------------------------------------------------------
