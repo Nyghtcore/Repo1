@@ -141,3 +141,32 @@ ISO 8601 timestamp becomes a reminder:
 Timestamps without a zone are interpreted in the machine's local time. The
 worker fires when the minute matches, de-duplicates within a minute and catches
 up reminders missed while the machine slept (up to 24 hours back).
+
+## Android companion
+
+The same codebase builds an Android app. It opens the same vault folder that
+Syncthing syncs to your phone, so passwords, notes, tasks and reminders stay in
+step with the desktop.
+
+**Get the APK** without installing any Android tools: every push runs the
+**Android APK** workflow (`.github/workflows/android.yml`) on GitHub. Open the
+repository's **Actions** tab, pick the latest run, and download the
+`zynky-android` artifact. You can also start it by hand with **Run workflow**.
+
+**Set up the phone**
+
+1. Install Syncthing-Fork (F-Droid or Google Play) and share your PC's
+   `ZynkyVault` folder to the phone, e.g. into `Documents/ZynkyVault`.
+2. Install the Zynky APK (allow "install unknown apps" for your browser or file manager).
+3. On first launch, grant **All files access** so Zynky can read the synced folder.
+4. Enter the folder path (default `/storage/emulated/0/Documents/ZynkyVault`)
+   and unlock with your existing master password.
+
+Notes:
+- The APK is a debug-signed build. Each workflow run signs with a fresh key, so
+  to update, uninstall the old app first. Your vault is untouched because it
+  lives in the Syncthing folder, not inside the app.
+- Reminder notifications fire while Zynky is open (or kept in recent apps);
+  Android may pause the app in the background.
+- Build locally instead with Android Studio installed:
+  `npm run tauri android build -- --apk --target aarch64 --debug`.

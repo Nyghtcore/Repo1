@@ -7,7 +7,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import {
+  isPermissionGranted,
+  requestPermission,
+} from "@tauri-apps/plugin-notification";
 
 import type {
   AppSettings,
@@ -109,6 +113,10 @@ export const generatePassword = (length = 20, symbols = true) =>
 export const importMedia = (sourcePath: string) =>
   invoke<FileEntry>("import_media", { sourcePath });
 
+/** Import file contents read by the webview (Android file picker path). */
+export const importMediaBytes = (name: string, dataBase64: string) =>
+  invoke<FileEntry>("import_media_bytes", { name, dataBase64 });
+
 export const readMedia = (name: string) =>
   invoke<MediaPayload>("read_media", { name });
 
@@ -157,6 +165,23 @@ export async function pickFiles(title: string): Promise<string[]> {
 
 export const openInSystem = (path: string) => openPath(path);
 export const revealInFolder = (path: string) => revealItemInDir(path);
+
+/** Open a web address in the default browser, adding https:// if missing. */
+export function openWebsite(url: string): Promise<void> {
+  const trimmed = url.trim();
+  const full = /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return openUrl(full);
+}
+
+/** Ask for notification permission (required on Android 13+). */
+export async function ensureNotificationPermission(): Promise<boolean> {
+  try {
+    if (await isPermissionGranted()) return true;
+    return (await requestPermission()) === "granted";
+  } catch {
+    return false;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Events

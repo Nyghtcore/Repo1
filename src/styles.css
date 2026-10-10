@@ -1030,3 +1030,171 @@ textarea {
   cursor: pointer;
   line-height: 1;
 }
+
+/* ------------------------------------------------------------------------
+   Phone layout (Android companion, narrow windows)
+   ------------------------------------------------------------------------ */
+.back-button {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  body {
+    font-size: 15px;
+  }
+
+  .unlock-screen {
+    padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+    align-items: start;
+    overflow: auto;
+  }
+
+  .unlock-card {
+    padding: 20px;
+  }
+
+  /* Sidebar becomes a bottom tab bar. */
+  .workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .workspace-main {
+    grid-row: 1;
+    min-height: 0;
+  }
+
+  .sidebar {
+    grid-row: 2;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    gap: 0;
+  }
+
+  .sidebar-brand,
+  .sidebar-footer {
+    display: none;
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    justify-content: space-around;
+  }
+
+  .sidebar-nav li {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .nav-item {
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 2px;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .nav-icon {
+    width: auto;
+    font-size: 18px;
+  }
+
+  .nav-item.active {
+    font-weight: 400;
+  }
+
+  .nav-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  /* Each pane shows either its list or its detail, never both. */
+  .pane {
+    grid-template-columns: 1fr;
+  }
+
+  .pane > .pane-main {
+    display: none;
+  }
+
+  .pane.pane-single > .pane-main,
+  .pane.pane-detail-open > .pane-main {
+    display: flex;
+  }
+
+  .pane.pane-detail-open > .file-list {
+    display: none;
+  }
+
+  .file-list {
+    border-right: none;
+  }
+
+  .pane-main {
+    padding: 12px 14px;
+  }
+
+  .back-button {
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+
+  .doc-header {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .doc-header-text {
+    flex: 1;
+  }
+
+  .doc-header h2 {
+    font-size: 18px;
+  }
+
+  .doc-header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid .field:nth-child(3),
+  .form-grid .field:nth-child(4) {
+    grid-column: auto;
+  }
+
+  .field-row {
+    flex-wrap: wrap;
+  }
+
+  .field-row input {
+    flex-basis: 100%;
+  }
+
+  .reminder-add,
+  .reminder-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-surface {
+    padding: 12px 14px;
+  }
+
+  .toast-viewport {
+    left: 12px;
+    right: 12px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    max-width: none;
+  }
+
+  .vault-pane .btn-block,
+  .vault-pane .change-password {
+    max-width: 420px;
+  }
+}

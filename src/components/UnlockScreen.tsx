@@ -4,6 +4,7 @@ import * as api from "../api";
 import { useToast } from "../context/ToastContext";
 import { useVault } from "../context/VaultContext";
 import { errorMessage, type VaultStatus } from "../types";
+import { isMobile } from "../platform";
 
 type Mode = "unlock" | "create";
 
@@ -115,10 +116,18 @@ export function UnlockScreen() {
               onChange={(e) => setPath(e.target.value)}
               spellCheck={false}
             />
-            <button type="button" className="btn" onClick={browse}>
-              Browse…
-            </button>
+            {isMobile ? null : (
+              <button type="button" className="btn" onClick={browse}>
+                Browse…
+              </button>
+            )}
           </div>
+          {isMobile ? (
+            <small className="hint">
+              Use the same folder Syncthing syncs on this phone, for example
+              /storage/emulated/0/Documents/ZynkyVault. Allow "All files access" when asked.
+            </small>
+          ) : null}
           {status ? (
             <small className="hint">
               {status.initialised

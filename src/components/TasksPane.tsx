@@ -68,7 +68,7 @@ export function TasksPane() {
   const progress = total === 0 ? 0 : Math.round((completed / total) * 100);
 
   return (
-    <div className="pane">
+    <div className={`pane${selected && doc ? " pane-detail-open" : ""}`}>
       <FileList
         title="Tasks"
         entries={entries}
@@ -90,6 +90,7 @@ export function TasksPane() {
               path={doc.path}
               onRename={rename}
               onDelete={remove}
+              onBack={() => setSelected(null)}
               extra={
                 <div className="segmented segmented-small">
                   <button

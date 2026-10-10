@@ -7,6 +7,7 @@ import { useDocument } from "../hooks/useDocument";
 import { errorMessage, REMINDERS_FILE, type EngineStatus, type Reminder } from "../types";
 import { formatDateTime, formatRelative, toLocalIsoMinute } from "../utils/format";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { isMobile } from "../platform";
 
 /**
  * `reminders.md` lives in the vault root rather than in a category folder, so
@@ -138,7 +139,8 @@ export function RemindersPane() {
         <p className="hint">
           Reminders are lines in <code>{REMINDERS_FILE}</code> such as{" "}
           <code>- [ ] Call the bank @ 2026-10-10T09:30</code>. The background worker checks the
-          file every 60 seconds and shows a Windows toast when the minute matches.
+          file every 60 seconds and shows a {isMobile ? "notification" : "Windows toast"} when the
+          minute matches{isMobile ? " (while Zynky is open)" : ""}.
         </p>
 
         {showEditor && doc ? (

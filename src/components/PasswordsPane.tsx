@@ -13,6 +13,7 @@ import {
   type CredentialSecret,
 } from "../types";
 import { formatDateTime } from "../utils/format";
+import { BackButton } from "./DocumentHeader";
 import { FileList } from "./FileList";
 
 const CATEGORY: Category = "Passwords";
@@ -185,6 +186,13 @@ export function PasswordsPane() {
     }
   }
 
+  function closeForm() {
+    if (dirty && !window.confirm("Discard unsaved changes?")) return;
+    setForm(null);
+    setSelected(null);
+    setDirty(false);
+  }
+
   async function remove() {
     if (!selected) return;
     if (!window.confirm(`Delete "${selected}" permanently?`)) return;
@@ -199,7 +207,7 @@ export function PasswordsPane() {
   }
 
   return (
-    <div className="pane">
+    <div className={`pane${form ? " pane-detail-open" : ""}`}>
       <FileList
         title="Passwords"
         entries={entries}
@@ -215,6 +223,7 @@ export function PasswordsPane() {
         {form ? (
           <form className="credential-form" onSubmit={save}>
             <header className="doc-header">
+              <BackButton onClick={closeForm} />
               <div className="doc-header-text">
                 <h2>{form.title || "New credential"}</h2>
                 <small className="muted">
@@ -315,7 +324,11 @@ export function PasswordsPane() {
                     <button
                       type="button"
                       className="btn"
-                      onClick={() => void api.openInSystem(form.secret.url)}
+                      onClick={() =>
+                        api
+                          .openWebsite(form.secret.url)
+                          .catch((e) => toast.push("error", "Could not open link", errorMessage(e)))
+                      }
                     >
                       Open
                     </button>

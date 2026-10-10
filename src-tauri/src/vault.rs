@@ -1037,6 +1037,56 @@ pub fn import_media(state: State<'_, AppState>, source_path: String) -> AppResul
     entry_for(&root, Category::Media, &target)
 }
 
+/// Largest file accepted by [`import_media_bytes`] (base64 over IPC is costly).
+const MAX_IMPORT_BYTES: usize = 64 * 1024 * 1024;
+
+/// Import a file whose contents the webview already read (used on Android,
+/// where the system file picker yields content URIs rather than paths).
+#[tauri::command]
+pub fn import_media_bytes(
+    state: State<'_, AppState>,
+    name: String,
+    data_base64: String,
+) -> AppResult<FileEntry> {
+    use base64::Engine as _;
+    let root = state.require_vault()?;
+    let original = Path::new(name.trim())
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| "file".to_string());
+    validate_name(&original)?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data_base64.as_bytes())
+        .map_err(crate::crypto::CryptoError::from)?;
+    if bytes.len() > MAX_IMPORT_BYTES {
+        return Err(AppError::Other(format!(
+            "'{original}' is larger than {} MB",
+            MAX_IMPORT_BYTES / (1024 * 1024)
+        )));
+    }
+
+    let dir = category_dir(&root, Category::Media);
+    fs::create_dir_all(&dir).map_err(|e| AppError::io(&dir, e))?;
+    let as_path = Path::new(&original);
+    let stem = as_path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "file".into());
+    let ext = as_path
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    let mut target = dir.join(&original);
+    let mut n = 2;
+    while target.exists() {
+        target = dir.join(format!("{stem}-{n}{ext}"));
+        n += 1;
+    }
+    atomic_write(&target, &bytes)?;
+    entry_for(&root, Category::Media, &target)
+}
+
 /// Read a media file, inlining small ones as a data URL for previews.
 #[tauri::command]
 pub fn read_media(state: State<'_, AppState>, name: String) -> AppResult<MediaPayload> {
@@ -1117,7 +1167,18 @@ pub mod settings {
     }
 
     /// Default location suggested for a new vault: `<Documents>/ZynkyVault`.
+    ///
+    /// On Android the vault must live in shared storage so Syncthing (which
+    /// runs as a separate app) can sync the same folder, so the suggestion is
+    /// `/storage/emulated/0/Documents/ZynkyVault` instead of the app sandbox.
     #[tauri::command]
+    #[cfg(target_os = "android")]
+    pub fn default_vault_path(_app: AppHandle) -> AppResult<String> {
+        Ok("/storage/emulated/0/Documents/ZynkyVault".to_string())
+    }
+
+    #[tauri::command]
+    #[cfg(not(target_os = "android"))]
     pub fn default_vault_path(app: AppHandle) -> AppResult<String> {
         let base = app
             .path()

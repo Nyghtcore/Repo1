@@ -59,6 +59,7 @@ pub fn run() {
             vault::generate_password,
             // media
             vault::import_media,
+            vault::import_media_bytes,
             vault::read_media,
             // settings
             vault::settings::get_settings,

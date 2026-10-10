@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import * as api from "../api";
+import { isMobile } from "../platform";
 import type { SaveState } from "../hooks/useDocument";
 
 export interface DocumentHeaderProps {
@@ -10,6 +11,8 @@ export interface DocumentHeaderProps {
   path?: string;
   onRename?: (newName: string) => void;
   onDelete?: () => void;
+  /** Phone layout: return from the detail view to the list. */
+  onBack?: () => void;
   extra?: React.ReactNode;
 }
 
@@ -28,6 +31,7 @@ export function DocumentHeader({
   path,
   onRename,
   onDelete,
+  onBack,
   extra,
 }: DocumentHeaderProps) {
   const [renaming, setRenaming] = useState(false);
@@ -46,6 +50,7 @@ export function DocumentHeader({
 
   return (
     <header className="doc-header">
+      {onBack ? <BackButton onClick={onBack} /> : null}
       <div className="doc-header-text">
         {renaming ? (
           <input
@@ -69,7 +74,7 @@ export function DocumentHeader({
       <div className="doc-header-actions">
         <span className={`save-state save-${saveState}`}>{SAVE_LABEL[saveState]}</span>
         {extra}
-        {path ? (
+        {path && !isMobile ? (
           <button
             type="button"
             className="btn btn-small"
@@ -91,5 +96,14 @@ export function DocumentHeader({
         ) : null}
       </div>
     </header>
+  );
+}
+
+/** "‹ Back" button shown only in the narrow (phone) layout. */
+export function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="btn btn-small back-button" onClick={onClick}>
+      ‹ Back
+    </button>
   );
 }

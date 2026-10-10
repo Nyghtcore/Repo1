@@ -52,7 +52,7 @@ export function NotesPane() {
   }
 
   return (
-    <div className="pane">
+    <div className={`pane${selected && doc ? " pane-detail-open" : ""}`}>
       <FileList
         title="Notes"
         entries={entries}
@@ -73,6 +73,7 @@ export function NotesPane() {
               path={doc.path}
               onRename={rename}
               onDelete={remove}
+              onBack={() => setSelected(null)}
             />
             <MarkdownEditor
               value={doc.body}

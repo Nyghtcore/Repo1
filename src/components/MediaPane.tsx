@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import * as api from "../api";
 import { useToast } from "../context/ToastContext";
 import { useFileList } from "../hooks/useFileList";
 import { errorMessage, type Category, type FileEntry, type MediaPayload } from "../types";
 import { formatBytes, formatDateTime } from "../utils/format";
+import { fileToBase64, isMobile } from "../platform";
+import { BackButton } from "./DocumentHeader";
 import { FileList } from "./FileList";
 
 const CATEGORY: Category = "Media";
@@ -15,6 +17,7 @@ export function MediaPane() {
   const [selected, setSelected] = useState<string | null>(null);
   const [media, setMedia] = useState<MediaPayload | null>(null);
   const [importing, setImporting] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!selected) {
@@ -39,6 +42,11 @@ export function MediaPane() {
   }, [selected, toast]);
 
   async function importFiles() {
+    if (isMobile) {
+      // Android's picker returns content:// URIs, so read the bytes in the webview.
+      fileInput.current?.click();
+      return;
+    }
     setImporting(true);
     try {
       const paths = await api.pickFiles("Import files into the vault");
@@ -58,6 +66,33 @@ export function MediaPane() {
     }
   }
 
+  async function importPicked(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setImporting(true);
+    try {
+      let last: FileEntry | null = null;
+      for (const file of Array.from(files)) {
+        last = await api.importMediaBytes(file.name, await fileToBase64(file));
+      }
+      if (last) {
+        await refresh();
+        setSelected(last.name);
+        toast.push("success", `Imported ${files.length} file${files.length === 1 ? "" : "s"}`);
+      }
+    } catch (error) {
+      toast.push("error", "Import failed", errorMessage(error));
+    } finally {
+      setImporting(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
+
+  function openFile(path: string) {
+    api
+      .openInSystem(path)
+      .catch((error) => toast.push("error", "Could not open file", errorMessage(error)));
+  }
+
   async function remove() {
     if (!selected) return;
     if (!window.confirm(`Delete "${selected}" permanently?`)) return;
@@ -73,7 +108,14 @@ export function MediaPane() {
   const selectedEntry = entries.find((e) => e.name === selected) ?? null;
 
   return (
-    <div className="pane">
+    <div className={`pane${selected && selectedEntry ? " pane-detail-open" : ""}`}>
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        hidden
+        onChange={(e) => void importPicked(e.target.files)}
+      />
       <FileList
         title="Media"
         entries={entries}
@@ -90,6 +132,7 @@ export function MediaPane() {
         {selected && selectedEntry ? (
           <>
             <header className="doc-header">
+              <BackButton onClick={() => setSelected(null)} />
               <div className="doc-header-text">
                 <h2>{selectedEntry.name}</h2>
                 <small className="muted">
@@ -101,17 +144,19 @@ export function MediaPane() {
                 <button
                   type="button"
                   className="btn btn-small"
-                  onClick={() => void api.openInSystem(selectedEntry.path)}
+                  onClick={() => openFile(selectedEntry.path)}
                 >
                   Open
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-small"
-                  onClick={() => void api.revealInFolder(selectedEntry.path)}
-                >
-                  Reveal
-                </button>
+                {isMobile ? null : (
+                  <button
+                    type="button"
+                    className="btn btn-small"
+                    onClick={() => void api.revealInFolder(selectedEntry.path)}
+                  >
+                    Reveal
+                  </button>
+                )}
                 <button type="button" className="btn btn-small btn-danger" onClick={remove}>
                   Delete
                 </button>
